@@ -1,0 +1,235 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Калькулятор пенокомплекта</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 700px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+            border-radius: 8px;
+        }
+        h1 { text-align: center; color: #333; }
+        .input-group { margin-bottom: 15px; }
+        label { display: inline-block; width: 320px; font-weight: bold; }
+        input {
+            padding: 8px;
+            width: 150px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            background: #00acc1;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            font-size: 1em;
+        }
+        button:hover { background: #00838f; }
+        .result {
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+            border: 1px solid #ddd;
+        }
+        .warning {
+            color: #d32f2f;
+            background: #ffcdd2;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        hr { margin: 20px 0; }
+        .fraction { font-size: 1.3em; font-weight: bold; color: #00acc1; }
+        .note { font-size: 0.9em; color: #666; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <h1>🧼 Калькулятор автошампуня</h1>
+
+    <!-- Блок теста оборудования -->
+    <h3>Тест оборудования</h3>
+    <div class="input-group">
+        <label>🔹 Налито в бачок (мл):</label>
+        <input type="number" id="initial" value="500" step="1">
+    </div>
+    <div class="input-group">
+        <label>🔹 Осталось в бачке (мл):</label>
+        <input type="number" id="remaining" value="350" step="1">
+    </div>
+    <div class="input-group">
+        <label>🔹 Вылилось через АВД (собрано) (мл):</label>
+        <input type="number" id="collected" value="300" step="1">
+    </div>
+    <button onclick="testK()">❓ Как мешает мой пенокомплект?</button>
+    <div id="resultTest" class="result" style="display:none;"></div>
+
+    <hr>
+
+    <!-- Блок расчёта заправки мерной бутылки -->
+    <h3>🧴 Расчёт заправки мерной бутылки</h3>
+    <div class="input-group">
+        <label>🥫 Количество готового состава в мерной бутылке (мл):</label>
+        <input type="number" id="targetVolume" value="1000" step="100" min="1">
+    </div>
+    <div class="input-group">
+        <label>🔧 Разведение моего пенокомплекта, 1:K (если известно):</label>
+        <input type="number" id="userK" step="0.1" placeholder="не обязательно">
+    </div>
+    <div class="input-group">
+        <label>📊 Разведение в бачке 1 : M:</label>
+        <input type="number" id="givenM" value="10" step="0.1" min="0">
+    </div>
+    <button onclick="calcMix()">Рассчитать состав</button>
+    <div id="resultMix" class="result" style="display:none;"></div>
+    <div class="note">
+        * Если поле «Разведение пенокомплекта» пустое и тест не проводился, расчёт идёт по классической формуле (без K): шампунь = объём / (M+1), вода = объём * M/(M+1).<br>
+        * Если K известен (из теста или введён вручную), применяется специальная формула: доля шампуня = K / (10 * M).<br>
+        * Например, при K=24 и M=10: доля = 24/100 = 0.24 → на 1000 мл это 240 мл шампуня.
+    </div>
+
+    <script>
+        let currentK = null;
+
+        function computeKFromInputs() {
+            const initial = parseFloat(document.getElementById('initial').value);
+            const remaining = parseFloat(document.getElementById('remaining').value);
+            const collected = parseFloat(document.getElementById('collected').value);
+
+            if (isNaN(initial) || isNaN(remaining) || isNaN(collected) || initial <= 0 || remaining < 0 || collected <= 0) {
+                alert('Введите положительные числа во все поля теста.');
+                return null;
+            }
+            if (remaining > initial) {
+                alert('Остаток не может быть больше налитого.');
+                return null;
+            }
+            const used = initial - remaining;
+            if (used === 0) {
+                alert('Расход из бачка равен нулю.');
+                return null;
+            }
+            if (collected < used) {
+                alert('Собранный объём не может быть меньше расхода из бачка.');
+                return null;
+            }
+            const avd = collected - used;
+            return avd / used;
+        }
+
+        function testK() {
+            const K = computeKFromInputs();
+            if (K === null) return;
+            currentK = K;
+
+            const used = document.getElementById('initial').value - document.getElementById('remaining').value;
+            const avd = document.getElementById('collected').value - used;
+
+            let ratioText;
+            if (K >= 1) {
+                const roundedK = Math.round(K);
+                ratioText = `1 : ${roundedK} (точно ${K.toFixed(3)})`;
+            } else {
+                const inv = 1 / K;
+                const roundedInv = Math.round(inv);
+                ratioText = `${roundedInv} : 1 (точно 1 : ${K.toFixed(3)})`;
+            }
+
+            const resultDiv = document.getElementById('resultTest');
+            resultDiv.innerHTML = `
+                <h3>Результат теста</h3>
+                <p>Расход из бачка: <strong>${used.toFixed(1)} мл</strong></p>
+                <p>Расход воды из АВД: <strong>${avd.toFixed(1)} мл</strong></p>
+                <p><strong>Коэффициент K = ${K.toFixed(3)}</strong></p>
+                <p class="fraction">Соотношение (концентрат : вода) ≈ ${ratioText}</p>
+            `;
+            resultDiv.style.display = 'block';
+        }
+
+        function calcMix() {
+            const targetVolume = parseFloat(document.getElementById('targetVolume').value);
+            if (isNaN(targetVolume) || targetVolume <= 0) {
+                alert('Введите количество состава в мерной бутылке (положительное число).');
+                return;
+            }
+            const givenM = parseFloat(document.getElementById('givenM').value);
+            if (isNaN(givenM) || givenM < 0) {
+                alert('Введите M (неотрицательное число).');
+                return;
+            }
+
+            const userK = parseFloat(document.getElementById('userK').value);
+
+            let usingSpecial = false;
+            let K_used = null;
+            let shampoo, water;
+
+            if (!isNaN(userK) && userK > 0) {
+                // специальная формула с userK
+                usingSpecial = true;
+                K_used = userK;
+                const denominator = 10 * givenM;
+                if (denominator === 0) {
+                    alert('M не может быть нулём при использовании специальной формулы.');
+                    return;
+                }
+                const shampooFraction = K_used / denominator;
+                shampoo = targetVolume * shampooFraction;
+                water = targetVolume - shampoo;
+            } else if (currentK !== null) {
+                // специальная формула с currentK
+                usingSpecial = true;
+                K_used = currentK;
+                const denominator = 10 * givenM;
+                if (denominator === 0) {
+                    alert('M не может быть нулём при использовании специальной формулы.');
+                    return;
+                }
+                const shampooFraction = K_used / denominator;
+                shampoo = targetVolume * shampooFraction;
+                water = targetVolume - shampoo;
+            } else {
+                // классическая формула без K
+                usingSpecial = false;
+                shampoo = targetVolume / (givenM + 1);
+                water = targetVolume * givenM / (givenM + 1);
+            }
+
+            if (shampoo < 0 || water < 0) {
+                document.getElementById('resultMix').innerHTML = '<div class="warning">Некорректные значения</div>';
+            } else {
+                let message = `🧴 Для получения <strong>${targetVolume.toFixed(0)} мл</strong> смеси в мерной бутылке при M=${givenM}`;
+                if (usingSpecial) {
+                    message += ` и K=${K_used.toFixed(2)} (специальная формула)`;
+                } else {
+                    message += ` (классическое разведение, K не задан)`;
+                }
+                message += ` залейте:<br>`;
+                message += `• Шампунь: <strong>${shampoo.toFixed(1)} мл</strong><br>`;
+                message += `• Вода: <strong>${water.toFixed(1)} мл</strong><br>`;
+                message += `(общий объём в бутылке: <strong>${(shampoo + water).toFixed(1)} мл</strong>)<br><br>`;
+                if (usingSpecial) {
+                    const shampooFraction = K_used / (10 * givenM);
+                    message += `📌 Доля шампуня: ${(shampooFraction*100).toFixed(1)}%.`;
+                } else {
+                    message += `📌 Разведение 1:${givenM} в бачке даёт ${shampoo.toFixed(1)} мл шампуня на ${water.toFixed(1)} мл воды.`;
+                }
+                document.getElementById('resultMix').innerHTML = message;
+            }
+            document.getElementById('resultMix').style.display = 'block';
+        }
+
+        // Сброс currentK при изменении полей теста
+        document.getElementById('initial').addEventListener('input', function() { currentK = null; document.getElementById('resultTest').style.display = 'none'; });
+        document.getElementById('remaining').addEventListener('input', function() { currentK = null; document.getElementById('resultTest').style.display = 'none'; });
+        document.getElementById('collected').addEventListener('input', function() { currentK = null; document.getElementById('resultTest').style.display = 'none'; });
+    </script>
+</body>
+</html> 
